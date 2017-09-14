@@ -7,9 +7,9 @@ from mysql.connector import Error
 # TODO: Config loads from file
 # TODO: Functions for db manipulations
 config = {
-    'user': 'ivan',
-    'password': '66161234Iv',
-    'host': '5.23.98.140',
+    'user': 'xmltvparser',
+    'password': 'Ndgfhcth2017',
+    'host': 'localhost',
     'database': 'tvservice',
     'raise_on_warnings': True,
 }
