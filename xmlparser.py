@@ -1,8 +1,8 @@
 import gzip
 import os
+import requests
 import shutil
 from xml.etree.ElementTree import parse
-import requests
 from dateutil import parser
 from database import Database
 from logger import info
@@ -31,8 +31,9 @@ class XmlParser:
         self.__tree = parse(self.__file)
         self.__root = self.__tree.getroot()
         # generator info
-        # self.__generator_name = self.__root.find("tv").get("generator-info-name")
-        # self.__generator_url = self.__root.find("tv").get("generator-info-url")
+        self.__generator_name = self.__root.get("generator-info-name")
+        self.__generator_url = self.__root.get("generator-info-url")
+        info('Generator: {}, url: {}'.format(self.__generator_name, self.__generator_url))
         # database connection
         self.__database = Database()
         self.__database.connect()
