@@ -15,16 +15,59 @@ class Database:
     }
 
     # initial tables
-    __tables = {'channels': (
-        "CREATE TABLE `channels` ("
-        "   `id` INT NOT NULL,"
-        "   `title` VARCHAR(255) NOT NULL,"
-        "   `lang` VARCHAR(10) NOT NULL,"
-        "   `icon` VARCHAR(255) DEFAULT NULL,"
-        "PRIMARY KEY (id),"
-        "UNIQUE(id)"
-        ") ENGINE=InnoDb DEFAULT CHARSET utf8"
-    )}
+    __tables = {
+        'channels': (
+            "CREATE TABLE `channels` ("
+            "   `id` INT NOT NULL,"
+            "   `title` VARCHAR(255) NOT NULL,"
+            "   `lang` VARCHAR(10) NOT NULL,"
+            "   `icon` VARCHAR(255) DEFAULT NULL,"
+            "PRIMARY KEY (id),"
+            "UNIQUE(id),"
+            "INDEX (id)"
+            ") ENGINE=InnoDb DEFAULT CHARSET utf8"
+        ),
+        'categories': (
+            "CREATE TABLE `categories` ("
+            "   `id` INT NOT NULL AUTO_INCREMENT,"
+            "   `title` VARCHAR(255) NOT NULL,"
+            "   `lang` VARCHAR(10) NOT NULL,"
+            "PRIMARY KEY (id),"
+            "UNIQUE(id),"
+            "INDEX (id)"
+            ") ENGINE=InnoDb DEFAULT CHARSET utf8"
+        ),
+        'programme': (
+            "CREATE TABLE `programme` ("
+            "   `id` INT NOT NULL AUTO_INCREMENT,"
+            "   `title` VARCHAR(255) NOT NULL,"
+            "   `title_lang` VARCHAR(10) NOT NULL,"
+            "   `start` DATETIME NOT NULL,"
+            "   `end` DATETIME NOT NULL,"
+            "   `duration` TIME NOT NULL,"
+            "   `channel_id` INT NOT NULL,"
+            "PRIMARY KEY (id),"
+            "INDEX (id),"
+            "UNIQUE (channel_id, start, end),"
+            "FOREIGN KEY (channel_id)"
+            "    REFERENCES channels(id)"
+            "    ON DELETE CASCADE"
+            ") ENGINE=InnoDb DEFAULT CHARSET utf8"
+        ),
+        'programme_category': (
+            "CREATE TABLE `programme_category` ("
+            "   `programme_id` INT NOT NULL,"
+            "   `category_id` INT NOT NULL,"
+            "UNIQUE(programme_id, category_id),"
+            "FOREIGN KEY (programme_id)"
+            "    REFERENCES programme(id)"
+            "    ON DELETE CASCADE,"
+            "FOREIGN KEY (category_id)"
+            "    REFERENCES categories(id)"
+            "    ON DELETE CASCADE"
+            ") ENGINE=InnoDB DEFAULT CHARSET utf8"
+        )
+    }
 
     # creates required variables
     def __init__(self):
@@ -81,6 +124,10 @@ class Database:
         if run is not None:
             return run
 
+    # id of last inserted row
+    def last_insert_id(self):
+        return self.__cursor.lastrowid
+
     # logs error
     def __log_error(self):
         if self.__err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
@@ -93,8 +140,9 @@ class Database:
             error(self.__err)
 
     # creates initial tables
-    def __create_tables(self):
-        for name, ddl in self.__tables.items():
+    def __create_tables(self, tables=__tables):
+        failed_tables = {}
+        for name, ddl in tables.items():
             try:
                 self.__cursor.execute(ddl)
             except Error as err:
@@ -103,5 +151,8 @@ class Database:
                 else:
                     self.__err = err
                     self.__log_error()
+                    failed_tables[name] = ddl
             else:
                 info("Creating table {}: OK".format(name))
+        if failed_tables:
+            self.__create_tables(failed_tables)
