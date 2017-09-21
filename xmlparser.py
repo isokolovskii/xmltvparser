@@ -5,7 +5,7 @@ import shutil
 from xml.etree.ElementTree import parse
 from dateutil import parser
 from database import Database
-from logger import info, error
+from logger import info, error, critical
 
 
 # TODO: May be titles in different languages
@@ -231,7 +231,7 @@ class XmlParser:
                 result = self.__database.query("SELECT id FROM categories WHERE title=\'%s\' LIMIT 1" %
                                                category.text)
                 if not result[0]:
-                    error(self.__database.error())
+                    critical(self.__database.error())
                     exit(1)
                 for i in result[1]:
                     c.append(i[0])
@@ -241,7 +241,7 @@ class XmlParser:
     def __load_db_channels(self):
         result = self.__database.query("SELECT * FROM channels")
         if not result[0]:
-            error(self.__database.error())
+            critical(self.__database.error())
             exit(1)
         for channel_id, title, lang, icon in result[1]:
             self.__db_channels[channel_id] = {
@@ -254,7 +254,7 @@ class XmlParser:
     def __load_db_categories(self):
         result = self.__database.query("SELECT id, title FROM categories")
         if not result[0]:
-            error(self.__database.error())
+            critical(self.__database.error())
             exit(1)
         for cat_id, title in result[1]:
             self.__db_categories[cat_id] = title
