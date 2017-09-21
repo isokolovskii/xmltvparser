@@ -5,7 +5,7 @@
       <paths name="Remote isokol-dev.ru">
         <serverdata>
           <mappings>
-            <mapping deploy="xmltvparser" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/xmltvparser" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

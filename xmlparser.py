@@ -5,7 +5,7 @@ import shutil
 from xml.etree.ElementTree import parse
 from dateutil import parser
 from database import Database
-from logger import info
+from logger import info, error
 
 
 # TODO: May be titles in different languages
@@ -63,7 +63,9 @@ class XmlParser:
             icon = ''
             if channel.find('icon') is not None:
                 icon = channel.find('icon').get('src')
-            self.__database.run((channel_id, title, lang, icon))
+            result = self.__database.exec((channel_id, title, lang, icon))
+            if not result:
+                error(self.__database.error())
             info("Channel {} {} added.".format(channel_id, title))
             self.__db_channels[channel_id] = {
                 'title': title,
@@ -200,11 +202,17 @@ class XmlParser:
             #     })
             self.__database.prepare("INSERT INTO programme (title, title_lang, start, end, duration, channel_id)"
                                     "VALUES (%s, %s, %s, %s, %s, %s)")
-            self.__database.run((title, title_lang, start, end, duration, channel_id))
+            result = self.__database.exec((title, title_lang, start, end, duration, channel_id))
+            if not result:
+                error(self.__database.error())
+                continue
             programme_id = self.__database.last_insert_id()
             self.__database.prepare("INSERT INTO programme_category (programme_id, category_id) VALUES (%s, %s)")
             for category_id in categories:
-                self.__database.run((programme_id, category_id))
+                result = self.__database.exec((programme_id, category_id))
+                if not result:
+                    error(self.__database.error())
+                    continue
         info("Programme parsing completed")
 
     # parse programme categories
@@ -212,22 +220,30 @@ class XmlParser:
         c = []
         for category in categories:
             if category.text not in self.__db_categories.values():
-                self.__database.query("INSERT INTO categories (title, lang) VALUES (\'%s\', \'%s\')" %
-                                      (category.text, category.get('lang')))
+                result = self.__database.query("INSERT INTO categories (title, lang) VALUES (\'%s\', \'%s\')" %
+                                               (category.text, category.get('lang')))
+                if not result:
+                    error(self.__database.error())
                 info('Add category {} to database, id {}'.format(category.text, self.__database.last_insert_id()))
                 c.append(self.__database.last_insert_id())
                 self.__db_categories[self.__database.last_insert_id()] = category.text
             else:
-                category_id = self.__database.query("SELECT id FROM categories WHERE title=\'%s\' LIMIT 1" %
-                                                    category.text)
-                for i in category_id:
+                result = self.__database.query("SELECT id FROM categories WHERE title=\'%s\' LIMIT 1" %
+                                               category.text)
+                if not result[0]:
+                    error(self.__database.error())
+                    exit(1)
+                for i in result[1]:
                     c.append(i[0])
         return c
 
     # load existing channels from database
     def __load_db_channels(self):
-        db_channels = self.__database.query("SELECT * FROM channels")
-        for channel_id, title, lang, icon in db_channels:
+        result = self.__database.query("SELECT * FROM channels")
+        if not result[0]:
+            error(self.__database.error())
+            exit(1)
+        for channel_id, title, lang, icon in result[1]:
             self.__db_channels[channel_id] = {
                 'title': title,
                 'lang': lang,
@@ -236,6 +252,9 @@ class XmlParser:
 
     # load existinng categorues from database
     def __load_db_categories(self):
-        db_categories = self.__database.query("SELECT id, title FROM categories")
-        for cat_id, title in db_categories:
+        result = self.__database.query("SELECT id, title FROM categories")
+        if not result[0]:
+            error(self.__database.error())
+            exit(1)
+        for cat_id, title in result[1]:
             self.__db_categories[cat_id] = title
