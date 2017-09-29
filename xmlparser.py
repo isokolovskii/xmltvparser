@@ -1,17 +1,15 @@
 import gzip
 import os
-import requests
 import shutil
 from xml.etree.ElementTree import parse
+
+import requests
 from dateutil import parser
+
 from database import Database
 from logger import info, error, critical
 
 
-# TODO: May be titles in different languages
-# TODO: Duration may be longer than 24hrs
-# TODO: Add other attributes of programme
-# TODO: Check if programme already exists
 class XmlParser:
     # source xml file
     __file = '/tmp/xmltv.xml'
@@ -47,9 +45,11 @@ class XmlParser:
     def parse(self):
         self.__parse_channels()
         self.__parse_programme()
+        self.__clean_up()
         os.remove(self.__file)
         info('Parsing complete')
 
+    # TODO If channel exist check it's data and update if needed
     # parse channel list
     def __parse_channels(self):
         info("Start channel parsing...")
@@ -58,6 +58,7 @@ class XmlParser:
             channel_id = int(channel.get('id'))
             title = channel.find('display-name').text
             if channel_id in self.__db_channels.keys():
+                self.__db_channels[channel_id]['delete'] = False
                 continue
             lang = channel.find('display-name').get('lang')
             icon = ''
@@ -70,7 +71,8 @@ class XmlParser:
             self.__db_channels[channel_id] = {
                 'title': title,
                 'lang': lang,
-                'icon': icon
+                'icon': icon,
+                'delete': False
             }
         info("Channel parsing completed")
 
@@ -87,129 +89,56 @@ class XmlParser:
             channel_id = int(programme.get('channel'))
             title = programme.find('title').text
             title_lang = programme.find('title').get('lang')
+
             # programme categories
             categories = self.__parse_categories(programme.findall('category'))
-            # # programme descriptions
-            # description = []
-            # for desc in programme.findall('desc'):
-            #     description.append({
-            #         'desc': desc.text,
-            #         'desc_lang': desc.get('lang')
-            #     })
-            # # programme sub-titles
-            # sub_titles = []
-            # for sub_title in programme.findall('sub-title'):
-            #     sub_titles.append({
-            #         'subtitle': sub_title.text,
-            #         'subtitle_lang': sub_title.get('lang')
-            #     })
-            # # credits of programme
-            # programme_credits = {}
-            # if programme.find('credits') is not None:
-            #     credit = programme.find('credits')
-            #     actors = []
-            #     directors = []
-            #     writers = []
-            #     adapters = []
-            #     producers = []
-            #     composers = []
-            #     editors = []
-            #     presenters = []
-            #     commentators = []
-            #     guests = []
-            #     for actor in credit.findall('actors'):
-            #         actors.append(actor.text)
-            #     for writer in credit.findall('writers'):
-            #         writers.append(writer.text)
-            #     for director in credit.findall('directors'):
-            #         directors.append(director.text)
-            #     for adapter in credit.findall('adapters'):
-            #         adapters.append(adapter.text)
-            #     for producer in credit.findall('producers'):
-            #         producers.append(producer.text)
-            #     for composer in credit.findall('composers'):
-            #         composers.append(composer.text)
-            #     for editor in credit.findall('editors'):
-            #         editors.append(editor.text)
-            #     for presenter in credit.findall('presenters'):
-            #         presenters.append(presenter.text)
-            #     for commentator in credit.findall('commentators'):
-            #         commentators.append(commentator.text)
-            #     for guest in credit.findall('guests'):
-            #         guests.append(guest.text)
-            #     programme_credits['actors'] = actors
-            #     programme_credits['writers'] = writers
-            #     programme_credits['directors'] = directors
-            #     programme_credits['adapters'] = adapters
-            #     programme_credits['producers'] = producers
-            #     programme_credits['composers'] = composers
-            #     programme_credits['editors'] = editors
-            #     programme_credits['presenters'] = presenters
-            #     programme_credits['commentators'] = commentators
-            #     programme_credits['guests'] = guests
-            # # programme keywords
-            # keywords = []
-            # for keyword in programme.findall('keyword'):
-            #     keywords.append({
-            #         'keyword': keyword.text,
-            #         'keyword_lang': keyword.get('lang')
-            #     })
-            # # programme icon
-            # icons = []
-            # for icon in programme.findall('icon'):
-            #     icons.append({
-            #         'src': icon.get('src'),
-            #         'width': icon.get('width'),
-            #         'height': icon.get('height')
-            #     })
-            # countries = []
-            # # programme country(production and assoc)
-            # for country in programme.findall('country'):
-            #     lang = ''
-            #     if country.get('lang') is not None:
-            #         lang = country.get('lang')
-            #     countries.append({
-            #         'country': country.text,
-            #         'lang': lang
-            #     })
-            # # programme ratings
-            # ratings = []
-            # for rating in programme.findall('rating'):
-            #     icon = ''
-            #     if rating.find('icon') is not None:
-            #         icon = rating.find('icon').get('src')
-            #     system = ''
-            #     if rating.get('system') is not None:
-            #         system = rating.get('system')
-            #     ratings.append({
-            #         'value': rating.find('value').text,
-            #         'icon': icon,
-            #         'system': system
-            #     })
-            # # programme stars
-            # star_ratings = []
-            # for star_rating in programme.findall('star_rating'):
-            #     icon = ''
-            #     if star_rating.find('icon') is not None:
-            #         icon = rating.find('icon').get('src')
-            #     system = ''
-            #     if star_rating.get('system') is not None:
-            #         system = star_rating.get('system')
-            #     star_ratings.append({
-            #         'value': rating.find('value').text,
-            #         'icon': icon,
-            #         'system': system
-            #     })
-            self.__database.prepare("INSERT INTO programme (title, title_lang, start, end, duration, channel_id)"
-                                    "VALUES (%s, %s, %s, %s, %s, %s)")
-            result = self.__database.exec((title, title_lang, start, end, duration, channel_id))
+
+            # programme descriptions
+            description = ''
+            description_lang = ''
+            if programme.find('desc') is not None:
+                description = programme.find('desc').text
+                description_lang = programme.find('desc').get('lang')
+            # FIXME Unused parameters in SQL statement
+            # add programme or update if it exists
+            self.__database.prepare("SELECT id, title, title_lang, start, end, duration, description, "
+                                    "description_lang, channel_id FROM programme WHERE channel_id=%s AND start=%s")
+            result = self.__database.exec((channel_id, start.strftime('%Y-%m-%d %H:%M:%S')))
+            pid = -1
             if not result:
                 error(self.__database.error())
-                continue
-            programme_id = self.__database.last_insert_id()
+            if result[1]:
+                for programme_id, t, tl, s, e, d, desc, descl, chid in result[1]:
+                    pid = programme_id
+                    if t != title or tl != title_lang or end.strftime('%Y-%m-%d %H:%M:%S') != e or d != duration or \
+                       desc != description or descl != description_lang:
+                        self.__database.prepare("UPDATE programme SET "
+                                                "title=%s, title_lang=%s, end=%s, duration=$s,"
+                                                "description=$s, description_lang=%s WHERE channel_id=%s AND start=%s"
+                                                )
+                        result = self.__database.exec((title, title_lang, end, duration, description,
+                                                       description_lang, pid, start))
+                        if result:
+                            info("Programme updated: " + str(pid))
+                        else:
+                            error(self.__database.error())
+            else:
+                self.__database.prepare("INSERT INTO programme (title, title_lang, start, end, duration, description, "
+                                        "description_lang, channel_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)")
+                result = self.__database.exec((title, title_lang, start, end, duration, description, description_lang,
+                                               channel_id))
+                if not result:
+                    error(self.__database.error())
+                    continue
+                pid = self.__database.last_insert_id()
+
+            # clear all categories for pid if exists and add anew
+            result = self.__database.query("DELETE FROM programme_category WHERE programme_id=%s" % pid)
+            if not result:
+                error(self.__database.error())
             self.__database.prepare("INSERT INTO programme_category (programme_id, category_id) VALUES (%s, %s)")
             for category_id in categories:
-                result = self.__database.exec((programme_id, category_id))
+                result = self.__database.exec((pid, category_id))
                 if not result:
                     error(self.__database.error())
                     continue
@@ -247,10 +176,11 @@ class XmlParser:
             self.__db_channels[channel_id] = {
                 'title': title,
                 'lang': lang,
-                'icon': icon
+                'icon': icon,
+                'delete': True
             }
 
-    # load existinng categorues from database
+    # load existing categories from database
     def __load_db_categories(self):
         result = self.__database.query("SELECT id, title FROM categories")
         if not result[0]:
@@ -258,3 +188,21 @@ class XmlParser:
             exit(1)
         for cat_id, title in result[1]:
             self.__db_categories[cat_id] = title
+
+    # clear old data
+    def __clean_up(self):
+        # remove old programme
+        result = self.__database.query("DELETE FROM programme WHERE end < DATE_SUB(NOW(), INTERVAL 7 DAY)")
+        if result:
+            info("Old programme removed")
+        else:
+            error(self.__database.error())
+
+        # remove unknown channels
+        self.__database.prepare("DELETE FROM channels WHERE id=%s")
+        for channel_id in self.__db_channels.keys():
+            if self.__db_channels[channel_id]['delete']:
+                result = self.__database.exec(channel_id)
+                if not result:
+                    error(self.__database.error())
+        info("Unknown channels removed")

@@ -45,6 +45,8 @@ class Database:
             "   `start` DATETIME NOT NULL,"
             "   `end` DATETIME NOT NULL,"
             "   `duration` TIME NOT NULL,"
+            "   `description` TEXT,"
+            "   `description_lang` VARCHAR(10),"
             "   `channel_id` INT NOT NULL,"
             "PRIMARY KEY (id),"
             "INDEX (id),"
@@ -98,16 +100,17 @@ class Database:
     # runs prepared query with data
     def exec(self, data=None):
         try:
-            if data is None:
-                debug(self.__query)
-            else:
-                debug(self.__query % data)
+            # if data is None:
+            #     debug(self.__query)
+            # else:
+            #     debug(self.__query % data)
             self.__cursor.execute(self.__query, data)
         except Error as err:
             self.__err = err
             return False
         else:
-            if self.__query.startswith('INSERT') or self.__query.startswith('UPDATE'):
+            if self.__query.startswith('INSERT') or self.__query.startswith('UPDATE') or self.__query.startswith(
+                    'DELETE'):
                 self.__connection.commit()
                 return True
             else:
@@ -160,3 +163,8 @@ class Database:
                 info("Creating table {}: OK".format(name))
         if failed_tables:
             self.__create_tables(failed_tables)
+
+
+if __name__ == "__main__":
+    d = Database()
+    d.connect()

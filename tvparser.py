@@ -1,4 +1,5 @@
 from xmlparser import XmlParser
 
-tvparser = XmlParser()
-tvparser.parse()
+if __name__ == "__main__":
+    tvparser = XmlParser()
+    tvparser.parse()
