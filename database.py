@@ -1,5 +1,6 @@
 from mysql.connector import errorcode, connect, Error
-from logger import info, debug, critical, error
+
+from logger import info, critical, error
 
 
 class Database:
@@ -100,10 +101,6 @@ class Database:
     # runs prepared query with data
     def exec(self, data=None):
         try:
-            # if data is None:
-            #     debug(self.__query)
-            # else:
-            #     debug(self.__query % data)
             self.__cursor.execute(self.__query, data)
         except Error as err:
             self.__err = err

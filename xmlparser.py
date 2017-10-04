@@ -49,21 +49,33 @@ class XmlParser:
         os.remove(self.__file)
         info('Parsing complete')
 
-    # TODO If channel exist check it's data and update if needed
     # parse channel list
     def __parse_channels(self):
         info("Start channel parsing...")
-        self.__database.prepare("INSERT INTO channels (id, title, lang, icon) VALUES (%s, %s, %s, %s)")
         for channel in self.__root.findall('channel'):
+            # channel data
             channel_id = int(channel.get('id'))
             title = channel.find('display-name').text
-            if channel_id in self.__db_channels.keys():
-                self.__db_channels[channel_id]['delete'] = False
-                continue
             lang = channel.find('display-name').get('lang')
             icon = ''
             if channel.find('icon') is not None:
                 icon = channel.find('icon').get('src')
+            # check if id already exists
+            if channel_id in self.__db_channels.keys():
+                self.__db_channels[channel_id]['delete'] = False
+                # check if data changed and update it
+                if icon != self.__db_channels[channel_id]['icon'] or title != self.__db_channels[channel_id]['title'] \
+                        or lang != self.__db_channels[channel_id]['lang']:
+                    result = self.__database.query("UPDATE channels SET title=\'" + title + "\', lang=\'" + lang +
+                                                   "\', icon=\'" + icon + "\' WHERE id=" + str(channel_id))
+                    if result:
+                        info("Channel updated: " + str(channel_id))
+                    else:
+                        error(self.__database.error())
+                continue
+
+            # insert data into database
+            self.__database.prepare("INSERT INTO channels (id, title, lang, icon) VALUES (%s, %s, %s, %s)")
             result = self.__database.exec((channel_id, title, lang, icon))
             if not result:
                 error(self.__database.error())
@@ -81,11 +93,11 @@ class XmlParser:
         info("Start programme parsing...")
         for programme in self.__root.findall('programme'):
             # programme main data
-            start = programme.get('start')
-            start = parser.parse(start)
+            begin = programme.get('start')
+            begin = parser.parse(begin)
             end = programme.get('stop')
             end = parser.parse(end)
-            duration = end - start
+            duration = end - begin
             channel_id = int(programme.get('channel'))
             title = programme.find('title').text
             title_lang = programme.find('title').get('lang')
@@ -99,33 +111,35 @@ class XmlParser:
             if programme.find('desc') is not None:
                 description = programme.find('desc').text
                 description_lang = programme.find('desc').get('lang')
-            # FIXME Unused parameters in SQL statement
+
             # add programme or update if it exists
-            self.__database.prepare("SELECT id, title, title_lang, start, end, duration, description, "
-                                    "description_lang, channel_id FROM programme WHERE channel_id=%s AND start=%s")
-            result = self.__database.exec((channel_id, start.strftime('%Y-%m-%d %H:%M:%S')))
+            result = self.__database.query("SELECT id, title, title_lang, end, duration, description "
+                                           ", description FROM programme WHERE channel_id=" +
+                                           str(channel_id) + " AND begin=\'" + begin.strftime('%Y-%m-%d %H:%M:%S') +
+                                           "\'")
             pid = -1
             if not result:
                 error(self.__database.error())
             if result[1]:
-                for programme_id, t, tl, s, e, d, desc, descl, chid in result[1]:
+                for programme_id, t, tl, e, d, desc, descl in result[1]:
                     pid = programme_id
-                    if t != title or tl != title_lang or end.strftime('%Y-%m-%d %H:%M:%S') != e or d != duration or \
-                       desc != description or descl != description_lang:
-                        self.__database.prepare("UPDATE programme SET "
-                                                "title=%s, title_lang=%s, end=%s, duration=$s,"
-                                                "description=$s, description_lang=%s WHERE channel_id=%s AND start=%s"
-                                                )
-                        result = self.__database.exec((title, title_lang, end, duration, description,
-                                                       description_lang, pid, start))
+                    if t != title or tl != title_lang or end.strftime('%Y-%m-%d %H:%M:%S') != \
+                            e.strftime('%Y-%m-%d %H:%M:%S') or d != duration or desc != description or descl != \
+                            description_lang:
+                        result = self.__database.query("UPDATE programme SET title=\'" + title + "\', title_lang=\'" +
+                                                       title_lang + "\', end=\'" +
+                                                       end.strftime('%Y-%m-%d %H:%M:%S') + "\', duration=\'" +
+                                                       str(duration) + "\', description=\'" + description +
+                                                       "\', description_lang=\'" + description_lang +
+                                                       "\' WHERE id=" + str(pid))
                         if result:
                             info("Programme updated: " + str(pid))
                         else:
                             error(self.__database.error())
             else:
-                self.__database.prepare("INSERT INTO programme (title, title_lang, start, end, duration, description, "
+                self.__database.prepare("INSERT INTO programme (title, title_lang, begin, end, duration, description, "
                                         "description_lang, channel_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)")
-                result = self.__database.exec((title, title_lang, start, end, duration, description, description_lang,
+                result = self.__database.exec((title, title_lang, begin, end, duration, description, description_lang,
                                                channel_id))
                 if not result:
                     error(self.__database.error())
@@ -202,7 +216,8 @@ class XmlParser:
         self.__database.prepare("DELETE FROM channels WHERE id=%s")
         for channel_id in self.__db_channels.keys():
             if self.__db_channels[channel_id]['delete']:
-                result = self.__database.exec(channel_id)
+                result = self.__database.prepare("DELETE FROM channels WHERE id=" + str(channel_id))
                 if not result:
                     error(self.__database.error())
-        info("Unknown channels removed")
+                else:
+                    info("Unknown channel removed " + str(channel_id))

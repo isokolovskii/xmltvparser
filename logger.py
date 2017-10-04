@@ -52,7 +52,7 @@ class Logger:
 
 
 # logger object and logging functions shortcut
-logger = Logger(d_e_b_u_g=False)
+logger = Logger()
 debug = logger.mylogger.debug
 info = logger.mylogger.info
 warning = logger.mylogger.warning
