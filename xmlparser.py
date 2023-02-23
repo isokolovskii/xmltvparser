@@ -6,7 +6,7 @@ from xml.etree.ElementTree import parse
 import requests
 from dateutil import parser
 
-from database import Database
+from databases import Database
 from logger import info, error, critical
 
 
@@ -114,7 +114,7 @@ class XmlParser:
 
             # add programme or update if it exists
             result = self.__database.query("SELECT id, title, title_lang, end, duration, description "
-                                           ", description FROM programme WHERE channel_id=" +
+                                           " description FROM programme WHERE channel_id=" +
                                            str(channel_id) + " AND begin=\'" + begin.strftime('%Y-%m-%d %H:%M:%S') +
                                            "\'")
             pid = -1
